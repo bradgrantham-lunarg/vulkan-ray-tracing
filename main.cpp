@@ -27,10 +27,6 @@
 
 #define DEFAULT_FENCE_TIMEOUT 100000000000
 
-// Styled somewhat after Sascha Willem's triangle
-
-using namespace std;
-
 VkInstance instance;
 VkPhysicalDevice physical_device;
 const uint32_t NO_QUEUE_FAMILY = 0xffffffff;
@@ -48,12 +44,20 @@ void *window;
 bool be_noisy = true;
 bool enable_validation = false;
 bool dump_vulkan_calls = false;
-bool do_the_wrong_thing = false;
 
-struct vertex {
+struct Vertex
+{
     float v[3];
     float c[3];
 };
+
+// geometry data
+Vertex vertices[3] = {
+    {{0, 0, 0}, {1, 0, 0}},
+    {{1, 0, 0}, {0, 1, 0}},
+    {{0, 1, 0}, {0, 0, 1}},
+};
+uint32_t indices[3] = {0, 1, 2}; 
 
 struct buffer {
     VkDeviceMemory mem;
@@ -88,7 +92,7 @@ std::Vector<VkFence> wait_fences;
 
 #define STR(f) #f
 
-map<VkResult, string> vkresult_name_map =
+std::map<VkResult, std::string> vkresult_name_map =
 {
     {VK_ERROR_OUT_OF_HOST_MEMORY, "OUT_OF_HOST_MEMORY"},
     {VK_ERROR_OUT_OF_DEVICE_MEMORY, "OUT_OF_DEVICE_MEMORY"},
@@ -105,10 +109,10 @@ map<VkResult, string> vkresult_name_map =
     VkResult result = (f); \
     if(result != VK_SUCCESS) { \
 	if(vkresult_name_map.count(f) > 0) { \
-	    cerr << "VkResult from " STR(f) " was " << vkresult_name_map[result] << " at line " << __LINE__ << "\n"; \
+	    std::cerr << "VkResult from " STR(f) " was " << vkresult_name_map[result] << " at line " << __LINE__ << "\n"; \
 	} \
 	else \
-	    cerr << "VkResult from " STR(f) " was " << result << " at line " << __LINE__ << "\n"; \
+	    std::cerr << "VkResult from " STR(f) " was " << result << " at line " << __LINE__ << "\n"; \
 	exit(EXIT_FAILURE); \
     } \
 }
@@ -118,7 +122,7 @@ void print_implementation_information()
 {
     uint32_t ext_count;
     vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-    unique_ptr<VkExtensionProperties[]> exts(new VkExtensionProperties[ext_count]);
+    std::unique_ptr<VkExtensionProperties[]> exts(new VkExtensionProperties[ext_count]);
     vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, exts.get());
     if(be_noisy) {
         printf("Vulkan instance extensions:\n");
@@ -129,8 +133,8 @@ void print_implementation_information()
 
 void create_instance(VkInstance* instance)
 {
-    set<string> extension_set;
-    set<string> layer_set;
+    std::set<std::string> extension_set;
+    std::set<std::string> layer_set;
 
     uint32_t glfw_reqd_extension_count;
     const char** glfw_reqd_extensions = glfwGetRequiredInstanceExtensions(&glfw_reqd_extension_count);
@@ -155,8 +159,8 @@ void create_instance(VkInstance* instance)
     }
 
     {
-	vector<const char*> extensions;
-	vector<const char*> layers;
+        std::vector<const char*> extensions;
+        std::vector<const char*> layers;
 	// Careful - only valid for duration of sets where contents have not changed
 	for(auto& s: extension_set)
 	    extensions.push_back(s.c_str());
@@ -188,10 +192,10 @@ void choose_physical_device(VkInstance instance, VkPhysicalDevice* physical_devi
     uint32_t gpu_count = 0;
     VK_CHECK(vkEnumeratePhysicalDevices(instance, &gpu_count, nullptr));
     if(be_noisy) {
-        cerr << gpu_count << " gpus enumerated\n";
+        std::cerr << gpu_count << " gpus enumerated\n";
     }
     VkPhysicalDevice physical_devices[32];
-    gpu_count = min(32u, gpu_count);
+    gpu_count = std::min(32u, gpu_count);
     VK_CHECK(vkEnumeratePhysicalDevices(instance, &gpu_count, physical_devices));
     *physical_device = physical_devices[0];
 }
@@ -205,7 +209,7 @@ const char* device_types[] = {
     "unknown",
 };
 
-map<uint32_t, string> memory_property_bit_name_map = {
+std::map<uint32_t, std::string> memory_property_bit_name_map = {
     {VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, "DEVICE_LOCAL"},
     {VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, "HOST_VISIBLE"},
     {VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, "HOST_COHERENT"},
@@ -234,12 +238,12 @@ void print_device_information(VkPhysicalDevice physical_device)
     printf("    vendor  %X\n", properties.vendorID);
     printf("    device  %X\n", properties.deviceID);
     printf("    name    %s\n", properties.deviceName);
-    printf("    type    %s\n", device_types[min(5, (int)properties.deviceType)]);
+    printf("    type    %s\n", device_types[std::min(5, (int)properties.deviceType)]);
 
     uint32_t ext_count;
 
     vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &ext_count, nullptr);
-    unique_ptr<VkExtensionProperties[]> exts(new VkExtensionProperties[ext_count]);
+    std::unique_ptr<VkExtensionProperties[]> exts(new VkExtensionProperties[ext_count]);
     vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &ext_count, exts.get());
     printf("    extensions:\n");
     for(int i = 0; i < ext_count; i++)
@@ -250,7 +254,7 @@ void print_device_information(VkPhysicalDevice physical_device)
     //
     uint32_t queue_family_count;
     vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, nullptr);
-    unique_ptr<VkQueueFamilyProperties[]> queue_families(new VkQueueFamilyProperties[queue_family_count]);
+    std::unique_ptr<VkQueueFamilyProperties[]> queue_families(new VkQueueFamilyProperties[queue_family_count]);
     vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, queue_families.get());
     if(be_noisy) {
         for(int i = 0; i < queue_family_count; i++) {
@@ -274,7 +278,7 @@ void print_device_information(VkPhysicalDevice physical_device)
 
 void create_device(VkPhysicalDevice physical_device, VkDevice* device)
 {
-    vector<const char*> extensions;
+    std::vector<const char*> extensions;
 
     extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     extensions.insert(extensions.end(), {
@@ -377,17 +381,8 @@ void flushCommandBuffer(VkCommandBuffer commandBuffer)
     vkFreeCommandBuffers(device, command_pool, 1, &commandBuffer);
 }
 
-
-void create_vertex_buffers()
+void create_vertex_buffers(const Vertex* vertices, size_t verticesSize, const uint32_t *indices, size_t indicesSize)
 {
-    // geometry data
-    static vertex vertices[3] = {
-	{{0, 0, 0}, {1, 0, 0}},
-	{{1, 0, 0}, {0, 1, 0}},
-	{{0, 1, 0}, {0, 0, 1}},
-    };
-    static uint32_t indices[3] = {0, 1, 2}; 
-
     // host-writable memory and buffers
     buffer vertex_staging;
     buffer index_staging;
@@ -398,11 +393,7 @@ void create_vertex_buffers()
 
     // Allocate memory
     VkMemoryAllocateInfo memory_alloc = {};
-    if(do_the_wrong_thing) {
-        memory_alloc.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    } else {
-        memory_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    }
+    memory_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     memory_alloc.pNext = nullptr;
 
     // Create a buffer - buffers are used for things like vertex data
@@ -526,7 +517,7 @@ void init_vulkan()
 
     uint32_t queue_family_count;
     vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, nullptr);
-    unique_ptr<VkQueueFamilyProperties[]> queue_families(new VkQueueFamilyProperties[queue_family_count]);
+    std::unique_ptr<VkQueueFamilyProperties[]> queue_families(new VkQueueFamilyProperties[queue_family_count]);
     vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, queue_families.get());
     for(int i = 0; i < queue_family_count; i++) {
         if(queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
@@ -535,7 +526,7 @@ void init_vulkan()
     }
 
     if(preferred_queue_family == NO_QUEUE_FAMILY) {
-	cerr << "no desired queue family was found\n";
+        std::cerr << "no desired queue family was found\n";
 	exit(EXIT_FAILURE);
     }
 
@@ -547,7 +538,7 @@ void init_vulkan()
 
 void prepare_vulkan()
 {
-    create_vertex_buffers();
+    create_vertex_buffers(vertices, sizeof(vertices), indices, sizeof(indices));
     // create swapchain
     // create descriptor sets
     // load shader modules
@@ -584,21 +575,38 @@ static void error_callback(int error, const char* description)
     fprintf(stderr, "GLFW: %s\n", description);
 }
 
+bool quit = false;
+
+void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
+{
+    if(action == GLFW_PRESS) {
+        switch(key) {
+            case 'Q': case '\033':
+                glfwSetWindowShouldClose(window, GL_TRUE);
+                break;
+
+            case 'S':
+                // screenshot("color.ppm", nullptr);
+                break;
+        }
+    }
+}
+
+
 int main(int argc, char **argv)
 {
     be_noisy = (getenv("BE_NOISY") != NULL);
     enable_validation = (getenv("VALIDATE") != NULL);
-    do_the_wrong_thing = (getenv("BE_WRONG") != NULL);
 
     glfwSetErrorCallback(error_callback);
 
     if(!glfwInit()) {
-	cerr << "GLFW initialization failed.\n";
+        std::cerr << "GLFW initialization failed.\n";
         exit(EXIT_FAILURE);
     }
 
     if (!glfwVulkanSupported()) {
-	cerr << "GLFW reports Vulkan is not supported\n";
+        std::cerr << "GLFW reports Vulkan is not supported\n";
         exit(EXIT_FAILURE);
     }
 
@@ -607,27 +615,28 @@ int main(int argc, char **argv)
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     GLFWwindow* window = glfwCreateWindow(512, 512, "vulkan test", NULL, NULL);
 
+    glfwSetKeyCallback(window, key_callback);
+
     VkResult err = glfwCreateWindowSurface(instance, window, NULL, &surface);
     if (err) {
-	cerr << "GLFW window creation failed " << err << "\n";
+        std::cerr << "GLFW window creation failed " << err << "\n";
         exit(EXIT_FAILURE);
     }
 	
     PFN_vkCmdTraceRaysKHR cmdTraceRaysKHR = (PFN_vkCmdTraceRaysKHR)vkGetInstanceProcAddr(instance, "vkCmdTraceRaysKHR");
     assert(cmdTraceRaysKHR);
 
-    printf("success!\n");
-    getchar();
-
     prepare_vulkan();
 
-    // while(1)
-    {
+    while (!glfwWindowShouldClose(window)) {
+
         // start command buffer
-        // enqueue draw command
+        // enqueue ray-trace commands
         // end command buffer
         // enqueue command buffer for graphics
         // copy to present
+
+        glfwPollEvents();
     }
 
     cleanup_vulkan();
