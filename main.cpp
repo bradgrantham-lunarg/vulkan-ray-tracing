@@ -539,11 +539,63 @@ void init_vulkan()
 void prepare_vulkan()
 {
     create_vertex_buffers(vertices, sizeof(vertices), indices, sizeof(indices));
+
+    // Create Vertex Buffer;
+    VkBufferDeviceAddressInfo vertexBufferDeviceAddressInfo = { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, vertex_buffer.buf };
+    VkDeviceAddress vertexBufferDeviceAddress = vkGetBufferDeviceAddress(device, &vertexBufferDeviceAddressInfo);
+
+    VkBufferDeviceAddressInfo indexBufferDeviceAddressInfo = { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, index_buffer.buf };
+    VkDeviceAddress indexBufferDeviceAddress = vkGetBufferDeviceAddress(device, &indexBufferDeviceAddressInfo);
+
+
+    VkAccelerationStructureGeometryTrianglesDataKHR triangles = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR, nullptr};
+    triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+    triangles.vertexData.deviceAddress = vertexBufferDeviceAddress;
+    triangles.vertexStride = sizeof(Vertex);
+    triangles.maxVertex = 2;
+    triangles.indexType = VK_INDEX_TYPE_UINT32;
+    triangles.indexData.deviceAddress = indexBufferDeviceAddress;
+    triangles.transformData.hostAddress = 0;
+
+    VkAccelerationStructureGeometryKHR geometries[1];
+
+    geometries[0] = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR, nullptr };
+    geometries[0].geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+    geometries[0].geometry.triangles = triangles;
+    geometries[0].flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+
+    VkAccelerationStructureBuildGeometryInfoKHR buildInfo { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR, nullptr };
+
+    buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+    buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+    buildInfo.srcAccelerationStructure = VK_NULL_HANDLE;
+    buildInfo.dstAccelerationStructure = VK_NULL_HANDLE;
+    buildInfo.geometryCount = 1;
+    buildInfo.pGeometries = geometries;
+    buildInfo.ppGeometries = nullptr;
+    buildInfo.scratchData.deviceAddress = 0;
+
+    auto getAccelerationStructureBuildSizes = (PFN_vkGetAccelerationStructureBuildSizesKHR)vkGetInstanceProcAddr(instance, "vkGetAccelerationStructureBuildSizesKHR");
+    assert(getAccelerationStructureBuildSizes);
+
+    uint32_t maxPrimitiveCounts[] = { 0 };
+    VkAccelerationStructureBuildSizesInfoKHR sizeInfo { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR, nullptr };
+    getAccelerationStructureBuildSizes(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo, maxPrimitiveCounts, &sizeInfo);
+
+    std::cout << "sizeInfo.accelerationStructureSize = " << sizeInfo.accelerationStructureSize << "\n";
+    std::cout << "sizeInfo.updateScratchSize = " << sizeInfo.updateScratchSize << "\n";
+    std::cout << "sizeInfo.buildScratchSize = " << sizeInfo.buildScratchSize << "\n";
+
+    // Create Scratch Buffer;
+
+    // vkCreateAccelerationStructureKHR(...)
+
     // create swapchain
     // create descriptor sets
     // load shader modules
     // create pipeline layout
     // create pipeline
+
 }
 
 void cleanup_vulkan()
@@ -592,6 +644,16 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
     }
 }
 
+void draw_frame(void)
+{
+    // start command buffer
+    // enqueue ray-trace commands
+    // vkB
+    // vkCmdTraceRays(commandBuffer, raygenShaderBindingTable, missShaderBindingTable, hitShaderBindingTable, callableShaderBindingTable, 512, 512, 1);
+    // end command buffer
+    // enqueue command buffer for graphics
+    // copy to present
+}
 
 int main(int argc, char **argv)
 {
@@ -630,11 +692,7 @@ int main(int argc, char **argv)
 
     while (!glfwWindowShouldClose(window)) {
 
-        // start command buffer
-        // enqueue ray-trace commands
-        // end command buffer
-        // enqueue command buffer for graphics
-        // copy to present
+        draw_frame();
 
         glfwPollEvents();
     }
